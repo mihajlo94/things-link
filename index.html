@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="referrer" content="no-referrer">
+<meta name="robots" content="noindex, nofollow">
+<title>Add to Things</title>
+<style>
+  :root {
+    --bg: #f5f6f8; --card: #ffffff; --text: #1d1d1f; --muted: #6e6e73;
+    --accent: #1b6cf2; --accent-text: #ffffff; --border: #e3e5e8; --error: #c4302b;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #1c1c1e; --card: #2c2c2e; --text: #f5f5f7; --muted: #a1a1a6;
+      --accent: #3d8bff; --accent-text: #ffffff; --border: #3a3a3c; --error: #ff6b61;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; min-height: 100vh; display: flex; align-items: center; justify-content: center;
+    background: var(--bg); color: var(--text); padding: 24px 16px;
+    font: 16px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  }
+  main {
+    width: 100%; max-width: 440px; background: var(--card); border: 1px solid var(--border);
+    border-radius: 16px; padding: 24px;
+  }
+  h1 { font-size: 20px; margin: 0 0 4px; }
+  p { margin: 0 0 16px; color: var(--muted); }
+  .btn {
+    display: block; text-align: center; text-decoration: none; font-weight: 600;
+    background: var(--accent); color: var(--accent-text); border-radius: 12px; padding: 14px 16px;
+  }
+  .preview { margin: 20px 0 0; padding: 16px 0 0; border-top: 1px solid var(--border); }
+  .preview h2 { font-size: 15px; margin: 0 0 6px; overflow-wrap: anywhere; }
+  .preview .meta { font-size: 13px; color: var(--muted); margin: 0 0 8px; }
+  .preview ul { margin: 0 0 14px; padding-left: 20px; }
+  .preview li { margin: 2px 0; overflow-wrap: anywhere; }
+  .error { color: var(--error); }
+  [hidden] { display: none !important; }
+</style>
+</head>
+<body>
+<main>
+  <h1 id="heading">Opening Things…</h1>
+  <p id="status">If Things doesn't open by itself, tap the button.</p>
+  <a id="open" class="btn" href="#" hidden>Open in Things</a>
+  <section id="preview" class="preview" hidden></section>
+</main>
+<script>
+(function () {
+  // The Things link travels after the "#", which browsers never send to the server.
+  var target = window.location.hash.slice(1);
+  var heading = document.getElementById("heading");
+  var status = document.getElementById("status");
+  var button = document.getElementById("open");
+  var preview = document.getElementById("preview");
+
+  // Only links that create new items are allowed. Anything that edits existing
+  // data (it would need an auth token) is refused, so the page can't be misused.
+  var allowed = /^things:\/\/\/(add|add-project|json)\?/;
+  var valid = allowed.test(target) && !/auth[-_%2Dd]*token/i.test(target);
+
+  if (!valid) {
+    heading.textContent = "Nothing to add";
+    status.textContent = target
+      ? "This link isn't a valid Things link."
+      : "This page opens Things links. The link is missing its part after the #.";
+    status.className = "error";
+    return;
+  }
+
+  button.href = target;
+  button.hidden = false;
+  renderPreview(target);
+  window.location.href = target;
+
+  function param(url, name) {
+    try { return new URL(url).searchParams.get(name); } catch (e) { return null; }
+  }
+
+  function el(tag, text, cls) {
+    var node = document.createElement(tag);
+    if (text) node.textContent = text;
+    if (cls) node.className = cls;
+    return node;
+  }
+
+  function addList(items) {
+    if (!items.length) return;
+    var ul = el("ul");
+    items.forEach(function (t) { ul.appendChild(el("li", t)); });
+    preview.appendChild(ul);
+  }
+
+  function renderPreview(url) {
+    try {
+      var command = url.match(allowed)[1];
+      if (command === "json") {
+        var data = JSON.parse(param(url, "data") || "[]");
+        data.forEach(function (item) {
+          var a = item.attributes || {};
+          if (item.type === "project") {
+            preview.appendChild(el("h2", "Project: " + (a.title || "Untitled")));
+            if (a.area) preview.appendChild(el("p", "Area: " + a.area, "meta"));
+            addList((a.items || [])
+              .filter(function (i) { return i.type === "to-do"; })
+              .map(function (i) { return (i.attributes && i.attributes.title) || "Untitled"; }));
+          } else if (item.type === "to-do") {
+            preview.appendChild(el("h2", "To-do: " + (a.title || "Untitled")));
+          }
+        });
+      } else if (command === "add-project") {
+        preview.appendChild(el("h2", "Project: " + (param(url, "title") || "Untitled")));
+        addList((param(url, "to-dos") || "").split("\n").filter(Boolean));
+      } else {
+        var titles = param(url, "titles");
+        addList(titles ? titles.split("\n").filter(Boolean) : [param(url, "title") || "Untitled"]);
+      }
+      if (preview.childNodes.length) preview.hidden = false;
+    } catch (e) {
+      // The preview is only a convenience; the button still works without it.
+    }
+  }
+})();
+</script>
+</body>
+</html>
