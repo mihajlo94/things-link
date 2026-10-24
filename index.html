@@ -76,6 +76,31 @@
   button.hidden = false;
   renderPreview(target);
   window.location.href = target;
+  scheduleClose();
+
+  // Close this tab once Things has taken over. Browsers only allow this for
+  // tabs opened from a link (one history entry); if refused, say so instead.
+  function closeTab() {
+    window.close();
+    setTimeout(function () {
+      heading.textContent = "Added to Things";
+      status.textContent = "You can close this tab.";
+    }, 300);
+  }
+
+  function scheduleClose() {
+    var isTouch = navigator.maxTouchPoints > 0 || "ontouchstart" in window;
+    if (isTouch) {
+      // iPhone/iPad: wait until the browser goes to the background (Things
+      // opened), so the "Open in Things?" prompt is never cut short.
+      document.addEventListener("visibilitychange", function () {
+        if (document.visibilityState === "hidden") closeTab();
+      });
+    } else {
+      // Mac/PC: Things comes to the front right away once "Always allow" is set.
+      setTimeout(closeTab, 1500);
+    }
+  }
 
   function param(url, name) {
     try { return new URL(url).searchParams.get(name); } catch (e) { return null; }
